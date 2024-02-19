@@ -1,0 +1,61 @@
+# total_violence_count er numerical og har værdierne 0, 1, 2 og 3.
+# de resterende independent variables er enten factor variables eller character. 
+# Ingen af variablerne har NA's NAN's eller er Inf. Jeg kan sagtens lave modellen, lave ANOVA test med en null model og få coefficient værdierne. 
+# Mit problem er, at når jeg beder om confidence intervallet, så får jeg en lortefejl.
+
+# Model:
+model.pois <- glm(total_violence_count ~ level_of_disability + disability_type + gender + age_grouped + employment + education + children, data = df, family = poisson(link = "log"))
+#Call:
+#glm(formula = total_violence_count ~ level_of_disability + disability_type + 
+#    gender + age_grouped + employment + education + children, 
+#    family = poisson(link = "log"), data = df)
+#
+#Deviance Residuals: 
+#    Min       1Q   Median       3Q      Max  
+#-1.7639  -1.0176  -0.2476   0.5465   2.3657  
+#
+#Coefficients:
+#                                                       Estimate Std. Error z value Pr(>|z|)   
+#(Intercept)                                          -1.379e+00  5.144e-01  -2.680  0.00736 **
+#level_of_disabilityMinor                             -4.205e-02  2.846e-01  -0.148  0.88256   
+#level_of_disabilityPhysical major                     2.141e-01  2.861e-01   0.748  0.45429   
+#level_of_disabilityPsych major                        2.945e-01  3.107e-01   0.948  0.34312   
+#disability_typePsych dis                              7.790e-01  2.825e-01   2.757  0.00583 **
+#disability_typeBoth phys and psych                    6.748e-01  2.056e-01   3.282  0.00103 **
+#genderFemale                                          4.435e-01  2.047e-01   2.167  0.03024 * 
+#age_grouped31 - 40 years                              3.415e-01  3.477e-01   0.982  0.32613   
+#age_grouped41 - 50 years                              3.991e-01  3.420e-01   1.167  0.24332   
+#age_grouped51 - 60 years                              1.936e-01  3.606e-01   0.537  0.59128   
+#age_grouped61 - 70 years                             -2.349e-01  3.791e-01  -0.620  0.53549   
+#age_grouped71 and older                              -8.636e-01  4.913e-01  -1.758  0.07877 . 
+#employmentPart-time employment                       -1.521e-01  2.661e-01  -0.572  0.56752   
+#employmentStudent                                    -6.799e-02  4.404e-01  -0.154  0.87732   
+#employmentUnemployed/outside the labor market         3.029e-01  2.177e-01   1.392  0.16403   
+#employmentOther                                      -5.011e-01  4.738e-01  -1.058  0.29028   
+#educationStudent exam STX/HF/HHX/HG/HTX               8.331e-04  4.209e-01   0.002  0.99842   
+#educationSkilled                                      1.087e-01  2.733e-01   0.398  0.69093   
+#educationShort higher education (less than 3 years)  -7.786e-02  2.771e-01  -0.281  0.77869   
+#educationMedium-long higher education (3 to 4 years) -1.725e-02  2.435e-01  -0.071  0.94351   
+#educationLong higher education (5 years and over)    -3.473e-02  3.014e-01  -0.115  0.90828   
+#educationOther                                        2.149e-01  3.805e-01   0.565  0.57224   
+#childrenYes exclusively respondent                    3.728e-01  3.376e-01   1.104  0.26947   
+#childrenYes separated                                 4.163e-01  4.075e-01   1.021  0.30703   
+#childrenYes exclusively other partner                -1.429e+01  1.276e+03  -0.011  0.99106   
+#childrenYes moved out                                 6.907e-01  3.045e-01   2.268  0.02334 * 
+#childrenYes other                                     1.437e+00  5.788e-01   2.482  0.01306 * 
+#childrenNo                                            5.026e-01  2.698e-01   1.863  0.06247 . 
+#---
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+#
+#(Dispersion parameter for poisson family taken to be 1)
+#
+#    Null deviance: 236.45  on 189  degrees of freedom
+#Residual deviance: 168.42  on 162  degrees of freedom
+#AIC: 501.03
+#
+#Number of Fisher Scoring iterations: 13
+
+# Confidence intervals og dens lortefejl:
+confint(model.pois)
+#Error in glm.fit(x = Xi, y = Y, weights = W, etastart = LP, offset = o,  : 
+#  NA/NaN/Inf in 'x'
