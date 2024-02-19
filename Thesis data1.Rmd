@@ -1,0 +1,934 @@
+---
+title: "Thesis data"
+author: "Majbritt Lindholt Stenbøg"
+date: '2024-02-05'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(root.dir = "/Users/majbrittstenbog/Library/CloudStorage/OneDrive-LundUniversity/LUND/Thesis/Methodology/survey")
+```
+
+```{r}
+# Load data
+library(readxl)
+df = read_excel("thesis_survey_data.xlsx")
+```
+
+```{r}
+# Relevant packages
+library(dplyr)
+library(expss)
+library(tidyverse)
+library(pscl) 
+library(lmtest) 	
+library(questionr) 
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+library(gridExtra)
+library(AER) # use for testing model fit (dispersion) in poisson
+library(jtools)
+```
+
+## Changing variable names, recoding, and creating new variables.
+```{r}
+# Fixing the survey error of people answering yes to Q24 but answering no in Q26, but still got the question on Q27 
+conditions <- !(df$VAR26 == "1")
+
+df$VAR27_1 <- ifelse(conditions, "999", df$VAR27_1)
+df$VAR27_2 <- ifelse(conditions, "999", df$VAR27_2)
+df$VAR27_3 <- ifelse(conditions, "999", df$VAR27_3)
+df$VAR27_4 <- ifelse(conditions, "999", df$VAR27_4)
+df$VAR27_5 <- ifelse(conditions, "999", df$VAR27_5)
+df$VAR27_6 <- ifelse(conditions, "999", df$VAR27_6)
+df$VAR27_7 <- ifelse(conditions, "999", df$VAR27_7)
+df$VAR27_8 <- ifelse(conditions, "999", df$VAR27_8)
+```
+
+Change age values for easier interpretation
+```{r}
+# Change age values for easier interpretation
+df$VAR01[df$VAR01 == '108'] <- '11'
+df$VAR01[df$VAR01 == '206'] <- '12'
+df$VAR01[df$VAR01 == '304'] <- '13'
+
+# Remove anyone under 18
+df <- subset(df, VAR01 != 99) 
+
+df <- as_tibble(df) 
+
+# Rename the column 'VAR01' to 'age'
+df <- df %>%
+  rename(age = VAR01)
+```
+Changing the age variable into the names of the age group:
+```{r}
+df <- df %>%
+  mutate(age = case_when(
+    age == "1" ~ "18-20 years.",
+    age == "2" ~ "21-25 years.",
+    age == "3" ~ "26-30 years.",
+    age == "4" ~ "31-35 years.",
+    age == "5" ~ "36-40 years.",
+    age == "6" ~ "41-45 years.",
+    age == "7" ~ "46-50 years.",
+    age == "8" ~ "51-55 years.",
+    age == "9" ~ "56-60 years.",
+    age == "10" ~ "61-65 years.",
+    age == "11" ~ "66-70 years.",
+    age == "12" ~ "71-75 years.",
+    age == "13" ~ "76 years or older."))
+
+df$age <- factor(df$age, levels = c("18-20 years.","21-25 years.","26-30 years.","31-35 years.","36-40 years.","41-45 years.","46-50 years.","51-55 years.", "56-60 years.","61-65 years.", "66-70 years.", "71-75 years.","76 years or older."), ordered = TRUE)
+print(table(df$age))
+```
+
+Lets also make new age groupings.
+```{r}
+df <- df %>%
+  mutate(age_grouped = case_when(
+    age %in% c("18-20 years.", "21-25 years.", "26-30 years.") ~ "18 - 30 years",
+    age %in% c("31-35 years.", "36-40 years.") ~ "31 - 40 years",
+    age %in% c("41-45 years.", "46-50 years.") ~ "41 - 50 years",
+    age %in% c("51-55 years.", "56-60 years.") ~ "51 - 60 years",
+    age %in% c("61-65 years.", "66-70 years.") ~ "61 - 70 years",
+    age %in% c("71-75 years.", "76 years or older.") ~ "71 and older"
+  ))
+print(table(df$age_grouped))
+```
+
+
+Lets rename some variables for easier interpretation:
+```{r}
+df <- df %>%
+  rename(gender = VAR00)
+df <- df %>%
+  rename(children = VAR02)
+df <- df %>%
+  rename(education = VAR03)
+df <- df %>%
+  rename(employment = VAR04)
+df <- df %>%
+  rename(trust_person = VAR05) # do you have someone you can trust
+df <- df %>%
+  rename(physical_dis = VAR06)
+df <- df %>%
+  rename(physical_level = VAR07)
+df <- df %>%
+  rename(psych_dis = VAR08)
+df <- df %>%
+  rename(psych_level = VAR09)
+df <- df %>%
+  rename(aid_tools = VAR10) # do you use any aid tools in your everyday life?
+df <- df %>%
+  rename(aid_dep = VAR11) # dependency of those aid tools. 
+df <- df %>%
+  rename(psych1 = VAR12) #  latterliggjort dig, kritiseret dit udseende, din krop, din væremåde eller kaldt dig nedværdigende øgenavne
+df <- df %>%
+  rename(psych2 = VAR14) # forsøgt at forhindre dig i at have kontakt med andre, bestemt hvad du må sige og gøre, overvåget dig eller gjort det svært for dig at have venner
+df <- df %>%
+  rename(psych3 = VAR16) # gentagne gange har truet med at skade dig, dine børn, dine kæledyr eller gøre skade på sig selv
+df <- df %>%
+  rename(psych_dis_rel = VAR18) #psychological violence relation to disability
+df <- df %>%
+  rename(psych_partner1 = VAR19) # I hvilken grad har du været utryg eller holdt op med at gøre ting for at undgå din partners eller din tidligere partners vrede, jalousi eller trusler?
+df <- df %>%
+  rename(psych_partner2 = VAR20) # Har du oplevet, at en tidligere partner har truet dig efter parforholdet er afsluttet, med at du ikke ville få lov at se jeres fælles barn/børn, hvis du ikke gjorde, som han/hun ønskede?
+df <- df %>%
+  rename(psych_partner3 = VAR21) # Har du oplevet, at en partner, som du var sammen med på daværende tidspunkt, har truet dig med, at du ikke ville få lov til at se jeres fælles barn/børn, hvis du afsluttede parforholdet?
+df <- df %>%
+  rename(physical1 = VAR22) # skubbet dig hårdt, rusket dig, givet dig en lussing, bidt dig, hevet dig hårdt i håret eller holdt dig fast mod din vilje?
+df <- df %>%
+  rename(physical2 = VAR24) # slået dig med knytnæve eller med en hård genstand, sparket dig, kastet dig ind i væg el lign.
+df <- df %>%
+  rename(physical3 = VAR26) #taget kvælertag på dig, eller har truet eller angrebet dig med skydevåben, kniv el lign.
+df <- df %>%
+  rename(physical_dis_rel = VAR28) # fysical violence relation to disability
+df <- df %>%
+  rename(sexual1 = VAR29) # nøgenbilleder og/eller seksuelle videoklip af dig eller presset dig til at sende nøgenbilleder og/eller seksuelle videoklip af dig selv
+df <- df %>%
+  rename(sexual2_women = VAR31) # at nogen mod din vilje har ført sin penis, anden del af deres krop, eller en genstand ind i din skede eller endetarm
+df <- df %>%
+  rename(sexual2_men = VAR32)
+df <- df %>%
+  rename(sexual2_other = VAR33)
+df <- df %>%
+  rename(sexual3 = VAR35) # presset til nogen form for sex, som du ikke vil
+df <- df %>%
+  rename(sexual_dis_rel = VAR37) # sexual violence relation to disability
+df <- df %>%
+  rename(talked = VAR38) # talked to someone about their experience
+df <- df %>%
+  rename(acknowledged = VAR40) # Did they feel acknowledged when they told about their situation
+df <- df %>%
+  rename(got_help = VAR41) # did they get help
+df <- df %>%
+  rename(rejected = VAR42) # did they experience getting rejected
+df <- df %>%
+  rename(help_knowledge = VAR43) # do they feel they know enough about where to get help
+```
+
+changing level of disability to factor variables and making sure that NA's are treated as such.
+```{r}
+df$physical_level <- factor(df$physical_level,
+                                       levels = c("1", "2", "999"),
+                                       labels = c("Major", "Minor", "NA"))
+
+df$physical_level[df$physical_level == "NA"] <- NA
+
+df$psych_level <- factor(df$psych_level,
+                                       levels = c("1", "2", "999"),
+                                       labels = c("Major", "Minor", "NA"))
+
+df$psych_level[df$psych_level == "NA"] <- NA
+
+# Type of disability into factors
+df$physical_dis <- factor(df$physical_dis, levels = c("1", "2"), labels = c("Yes", "No"))
+df$psych_dis <- factor(df$psych_dis, levels = c("1", "2"), labels = c("Yes", "No"))
+```
+
+Remove anyone who does not identify themselves with a handicap
+```{r}
+df <- subset(df, !(physical_dis == "No" & psych_dis == "No"))
+```
+
+Remove person with sexual orientation other than male or female, as there is only one.
+```{r}
+df <- subset(df, gender != "2")
+df$gender <- factor(df$gender,
+                    levels = c("0","1"),
+                    labels = c("Male","Female"))
+```
+
+Everyone who wrote 'pension' as other in employment are now changed in the variable 'employment' to the label '4' - which is pension.
+```{r}
+df$employment <- ifelse(grepl("pension", df$VAR04_1), "4", df$employment)
+df$employment <- ifelse(grepl("Pension", df$VAR04_1), "4", df$employment)
+df$employment <- ifelse(grepl("pensiom", df$VAR04_1), "4", df$employment)
+```
+
+Changing employment into a factor variable.
+```{r}
+df$employment <- factor(df$employment,
+                                       levels = c("1", "2", "3","4","5"),
+                                       labels = c("Ordinary employment", "Part-time employment", "Student","Unemployed/outside the labor market","Other"))
+
+df$employment[df$employment == "NA"] <- NA
+```
+
+Changing and renaming children variable.
+```{r}
+df$children <- factor(df$children,
+                                       levels = c("1", "2", "3","4","5","6","7"),
+                                       labels = c("Yes both parents", "Yes exclusively respondent", "Yes separated","Yes exclusively other partner","Yes moved out","Yes other", "No"))
+
+df$children[df$children == "NA"] <- NA
+```
+
+```{r}
+
+df$education <- factor(df$education,
+                                       levels = c("1", "2", "3","4","5","6","7"),
+                                       labels = c("Elementary school", "Student exam STX/HF/HHX/HG/HTX", "Skilled","Short higher education (less than 3 years)","Medium-long higher education (3 to 4 years)","Long higher education (5 years and over)","Other"))
+```
+
+```{r}
+df$help_knowledge <- factor(df$help_knowledge,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No", "NA"))
+
+df$help_knowledge[df$help_knowledge == "NA"] <- NA
+
+df$rejected <- factor(df$rejected,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No", "NA"))
+
+df$rejected[df$rejected == "NA"] <- NA
+
+df$got_help <- factor(df$got_help,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No", "NA"))
+
+df$got_help[df$got_help == "NA"] <- NA
+
+df$acknowledged <- factor(df$acknowledged,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No", "NA"))
+
+df$acknowledged[df$acknowledged == "NA"] <- NA
+
+df$talked <- factor(df$talked,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No", "NA"))
+
+df$talked[df$talked == "NA"] <- NA
+```
+
+
+Multiple choice questions changed into dummy variables
+```{r}
+Multiplechoice <- c("VAR13_1", "VAR13_2", "VAR13_3", "VAR13_4", "VAR13_5", "VAR13_6", "VAR13_7", "VAR13_8",
+                    "VAR15_1", "VAR15_2", "VAR15_3", "VAR15_4", "VAR15_5", "VAR15_6", "VAR15_7", "VAR15_8",
+                    "VAR17_1", "VAR17_2", "VAR17_3", "VAR17_4", "VAR17_5", "VAR17_6", "VAR17_7", "VAR17_8",
+                    "VAR23_1", "VAR23_2", "VAR23_3", "VAR23_4", "VAR23_5", "VAR23_6", "VAR23_7", "VAR23_8",
+                    "VAR25_1", "VAR25_2", "VAR25_3", "VAR25_4", "VAR25_5", "VAR25_6", "VAR25_7", "VAR25_8",
+                    "VAR27_1", "VAR27_2", "VAR27_3", "VAR27_4", "VAR27_5", "VAR27_6", "VAR27_7", "VAR27_8",
+                    "VAR30_1", "VAR30_2", "VAR30_3", "VAR30_4", "VAR30_5", "VAR30_6", "VAR30_7", "VAR30_8",
+                    "VAR34_1", "VAR34_2", "VAR34_3", "VAR34_4", "VAR34_5", "VAR34_6", "VAR34_7", "VAR34_8", 
+                    "VAR36_1", "VAR36_2", "VAR36_3", "VAR36_4", "VAR36_5", "VAR36_6", "VAR36_7", "VAR36_8", 
+                    "VAR39_1", "VAR39_2", "VAR39_3", "VAR39_4", "VAR39_5", "VAR39_6", "VAR39_7", "VAR39_8", "VAR39_9", "VAR39_10") 
+# VAR39 is the Q about why they have not walked to anyone about their experiences.
+
+# Loop through each column and apply the recoding
+for (col in Multiplechoice) {
+  df[[col]] <- ifelse(df[[col]] == "1", 1, 0)
+}
+
+# Print a sample of the updated DataFrame
+head(df)
+```
+```{r}
+df <- rename(df, '39_no_need' = VAR39_1)
+df <- rename(df, '39_not_serious' = VAR39_2)
+df <- rename(df, '39_would_not_help' = VAR39_3)
+df <- rename(df, '39_guilt/shame' = VAR39_4)
+df <- rename(df, '39_embarrasing' = VAR39_5)
+df <- rename(df, '39_protect_perpetrator' = VAR39_6)
+df <- rename(df, '39_no_one_to_know' = VAR39_7)
+df <- rename(df, '39_afraid_of_revenge' = VAR39_8)
+df <- rename(df, '39_afraid_not_to_be_serious' = VAR39_9)
+df <- rename(df, '39_other' = VAR39_10)
+
+df <- df %>%
+  mutate_at(vars('39_no_need', '39_not_serious', '39_would_not_help', '39_guilt/shame', '39_embarrasing', '39_protect_perpetrator', '39_no_one_to_know', '39_afraid_of_revenge', '39_afraid_not_to_be_serious', '39_other'), as.integer)
+```
+
+```{r}
+df <- df %>%
+  rename('13_former_partner' = VAR13_1, '13_current_partner' = VAR13_2, '13_parents' = VAR13_3, '13_children' =       VAR13_4, '13_other-family' = VAR13_5, '13_personal_assistance' = VAR13_6, '13_friend' = VAR13_7, '13_other' =       VAR13_8)
+df <- df %>%
+  rename('15_former_partner' = VAR15_1, '15_current_partner' = VAR15_2, '15_parents' = VAR15_3, '15_children' =       VAR15_4, '15_other-family' = VAR15_5, '15_personal_assistance' = VAR15_6, '15_friend' = VAR15_7, '15_other' =       VAR15_8)
+df <- df %>%
+  rename('17_former_partner' = VAR17_1, '17_current_partner' = VAR17_2, '17_parents' = VAR17_3, '17_children' =       VAR17_4, '17_other-family' = VAR17_5, '17_personal_assistance' = VAR17_6, '17_friend' = VAR17_7, '17_other' =       VAR17_8)
+df <- df %>%
+  rename('23_former_partner' = VAR23_1, '23_current_partner' = VAR23_2, '23_parents' = VAR23_3, '23_children' =       VAR23_4, '23_other-family' = VAR23_5, '23_personal_assistance' = VAR23_6, '23_friend' = VAR23_7, '23_other' =       VAR23_8)
+df <- df %>%
+  rename('25_former_partner' = VAR25_1, '25_current_partner' = VAR25_2, '25_parents' = VAR25_3, '25_children' =       VAR25_4, '25_other-family' = VAR25_5, '25_personal_assistance' = VAR25_6, '25_friend' = VAR25_7, '25_other' =       VAR25_8)
+df <- df %>%
+  rename('27_former_partner' = VAR27_1, '27_current_partner' = VAR27_2, '27_parents' = VAR27_3, '27_children' =       VAR27_4, '27_other-family' = VAR27_5, '27_personal_assistance' = VAR27_6, '27_friend' = VAR27_7, '27_other' =       VAR27_8)
+df <- df %>%
+  rename('30_former_partner' = VAR30_1, '30_current_partner' = VAR30_2, '30_parents' = VAR30_3, '30_children' =       VAR30_4, '30_other-family' = VAR30_5, '30_personal_assistance' = VAR30_6, '30_friend' = VAR30_7, '30_other' =       VAR30_8)
+df <- df %>%
+  rename('34_former_partner' = VAR34_1, '34_current_partner' = VAR34_2, '34_parents' = VAR34_3, '34_children' =       VAR34_4, '34_other-family' = VAR34_5, '34_personal_assistance' = VAR34_6, '34_friend' = VAR34_7, '34_other' =       VAR34_8)
+df <- df %>%
+  rename('36_former_partner' = VAR36_1, '36_current_partner' = VAR36_2, '36_parents' = VAR36_3, '36_children' =       VAR36_4, '36_other-family' = VAR36_5, '36_personal_assistance' = VAR36_6, '36_friend' = VAR36_7, '36_other' =       VAR36_8)
+```
+
+
+Dependency of aid tools
+```{r}
+df$aid_dep[df$aid_dep == "1"] <- "Very high degree"
+df$aid_dep[df$aid_dep == "2"] <- "High degree"
+df$aid_dep[df$aid_dep == "3"] <- "To some degree"
+df$aid_dep[df$aid_dep == "4"] <- "Low degree"
+df$aid_dep[df$aid_dep == "5"] <- "Not at all"
+
+df$aid_dep[df$aid_dep == "999" | df$psych_dis_rel == "6"] <- NA
+
+# Convert to ordered factor
+df$aid_dep <- factor(df$aid_dep, levels = c("Very high degree", "High degree", "To some degree", "Low degree", "Not at all"), ordered = TRUE)
+```
+
+Aid tools
+```{r}
+df$aid_tools <- factor(df$aid_tools,
+                                       levels = c("1", "2"),
+                                       labels = c("Yes", "No"))
+```
+
+Person of trust
+```{r}
+df$trust_person <- factor(df$trust_person,
+                                       levels = c("1", "2"),
+                                       labels = c("Has a person of trust", "No prson of trust"))
+```
+
+Count of violence experiences
+```{r}
+df <- df %>%
+  mutate(
+    psych_count = rowSums(df[, c("psych1", "psych2", "psych3")] == "1")
+  )
+df <- df %>%
+  mutate(
+    physical_count = rowSums(df[, c("physical1", "physical2", "physical3")] == "1")
+  )
+df <- df %>%
+  mutate(
+    sexual_count = rowSums(df[, c("sexual1", "sexual2_women", "sexual2_men", "sexual2_other","sexual3")] == "1")
+  )
+df <- df %>%
+  mutate(
+    total_violence_count = rowSums(df[, c("psych_count", "physical_count", "sexual_count")] != 0)
+  )
+```
+
+```{r}
+df$psych_dis_rel[df$psych_dis_rel == "1"] <- "Very high degree"
+df$psych_dis_rel[df$psych_dis_rel == "2"] <- "High degree"
+df$psych_dis_rel[df$psych_dis_rel == "3"] <- "To some degree"
+df$psych_dis_rel[df$psych_dis_rel == "4"] <- "Low degree"
+df$psych_dis_rel[df$psych_dis_rel == "5"] <- "Not at all"
+
+df$psych_dis_rel[df$psych_dis_rel == "999" | df$psych_dis_rel == "6"] <- NA
+
+# Convert to ordered factor
+df$psych_dis_rel <- factor(df$psych_dis_rel, levels = c("Very high degree", "High degree", "To some degree", "Low degree", "Not at all"), ordered = TRUE)
+```
+
+```{r}
+df$physical_dis_rel[df$physical_dis_rel == "1"] <- "Very high degree"
+df$physical_dis_rel[df$physical_dis_rel == "2"] <- "High degree"
+df$physical_dis_rel[df$physical_dis_rel == "3"] <- "To some degree"
+df$physical_dis_rel[df$physical_dis_rel == "4"] <- "Low degree"
+df$physical_dis_rel[df$physical_dis_rel == "5"] <- "Not at all"
+
+df$physical_dis_rel[df$physical_dis_rel == "999"| df$physical_dis_rel == "6"] <- NA
+
+# Convert to ordered factor
+df$physical_dis_rel <- factor(df$physical_dis_rel, levels = c("Very high degree", "High degree", "To some degree", "Low degree", "Not at all"), ordered = TRUE)
+```
+
+```{r}
+df$sexual_dis_rel[df$sexual_dis_rel == "1"] <- "Very high degree"
+df$sexual_dis_rel[df$sexual_dis_rel == "2"] <- "High degree"
+df$sexual_dis_rel[df$sexual_dis_rel == "3"] <- "To some degree"
+df$sexual_dis_rel[df$sexual_dis_rel == "4"] <- "Low degree"
+df$sexual_dis_rel[df$sexual_dis_rel == "5"] <- "Not at all"
+
+df$sexual_dis_rel[df$sexual_dis_rel == "999"| df$sexual_dis_rel == "6"] <- NA
+
+# Convert to ordered factor
+df$sexual_dis_rel <- factor(df$sexual_dis_rel, levels = c("Very high degree", "High degree", "To some degree", "Low degree", "Not at all"), ordered = TRUE)
+```
+Violence related to partner
+```{r}
+df$psych_partner1[df$psych_partner1 == "1"] <- "Very high degree"
+df$psych_partner1[df$psych_partner1 == "2"] <- "High degree"
+df$psych_partner1[df$psych_partner1 == "3"] <- "To some degree"
+df$psych_partner1[df$psych_partner1 == "4"] <- "Low degree"
+df$psych_partner1[df$psych_partner1 == "5"] <- "Not at all"
+
+df$psych_partner1[df$psych_partner1 == "999" | df$psych_dis_rel == "6"] <- NA
+
+# Convert to ordered factor
+df$psych_partner1 <- factor(df$psych_partner1, levels = c("Very high degree", "High degree", "To some degree", "Low degree", "Not at all"), ordered = TRUE)
+```
+
+```{r}
+df$psych_partner2 <- factor(df$psych_partner2,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No","NA"))
+df$psych_partner2[df$psych_partner2 == "NA"] <- NA
+
+df$psych_partner3 <- factor(df$psych_partner3,
+                                       levels = c("1", "2","999"),
+                                       labels = c("Yes", "No","NA"))
+df$psych_partner3[df$psych_partner3 == "NA"] <- NA
+```
+
+Here I am making a new variable with level of disability for each respondent
+```{r}
+df$level_of_disability <- NA  # Initialize as NA
+
+# Conditions for assigning level_of_disability
+both_major_condition <- df$psych_level == "Major" & df$physical_level == "Major"
+psych_major_condition <- df$psych_level == "Major" & (df$physical_level == "Minor" | is.na(df$physical_level))
+physical_major_condition <- df$physical_level == "Major" & (df$psych_level == "Minor" | is.na(df$psych_level))
+minor_condition <- (df$psych_level == "Minor" | is.na(df$psych_level)) & (df$physical_level == "Minor" | is.na(df$physical_level))
+
+# Assign values based on conditions
+df$level_of_disability[both_major_condition] <- "Both major"
+df$level_of_disability[psych_major_condition] <- "Psych major"
+df$level_of_disability[physical_major_condition] <- "Physical major"
+df$level_of_disability[minor_condition] <- "Minor"
+
+df$level_of_disability <- factor(df$level_of_disability, levels = c("Minor","Physical major", "Psych major","Both major"), ordered= FALSE)
+```
+
+```{r}
+df$disability_type <- NA  # Initialize as NA
+
+# Conditions for assigning disability_type
+both_condition <- df$physical_dis == "Yes" & df$psych_dis == "Yes"
+psych_condition <- df$psych_dis == "Yes" & df$physical_dis == "No"
+physical_condition <- df$physical_dis == "Yes"  & df$psych_dis == "No"
+
+
+# Assign values based on conditions
+df$disability_type[both_condition] <- "Both phys and psych"
+df$disability_type[psych_condition] <- "Psych dis"
+df$disability_type[physical_condition] <- "Physical dis"
+df$disability_type <- factor(df$disability_type, levels = c("Physical dis","Psych dis", "Both phys and psych"), ordered= FALSE)
+```
+
+```{r}
+head(df[, c("disability_type", "physical_dis", "psych_dis")], 40)
+describe(df$disability_type)
+```
+
+```{r}
+df$level_of_disability <- factor(df$level_of_disability, levels = c("Both major", "Minor", "Physical major", "Psych major"))
+df$total_violence_count <- as.integer(df$total_violence_count)
+```
+
+# Descriptives
+
+lets create some smaller tables that represents the multiple choice questions
+```{r}
+psychological1 <- data.frame(Freq = colSums(df[17:24]),
+           Pct.of.Resp = (colSums(df[17:24])/sum(df[17:24]))*100,
+           Pct.of.Cases = (colSums(df[17:24])/nrow(df[17:24]))*100)
+
+psychological2 <- data.frame(Freq = colSums(df[26:33]),
+           Pct.of.Resp = (colSums(df[26:33])/sum(df[26:33]))*100,
+           Pct.of.Cases = (colSums(df[26:33])/nrow(df[26:33]))*100)
+
+psychological3 <- data.frame(Freq = colSums(df[35:42]),
+           Pct.of.Resp = (colSums(df[35:42])/sum(df[35:42]))*100,
+           Pct.of.Cases = (colSums(df[35:42])/nrow(df[35:42]))*100)
+
+physical1 <- data.frame(Freq = colSums(df[48:55]),
+           Pct.of.Resp = (colSums(df[48:55])/sum(df[48:55]))*100,
+           Pct.of.Cases = (colSums(df[48:55])/nrow(df[48:55]))*100)
+
+physical2 <- data.frame(Freq = colSums(df[57:64]),
+           Pct.of.Resp = (colSums(df[57:64])/sum(df[57:64]))*100,
+           Pct.of.Cases = (colSums(df[57:64])/nrow(df[57:64]))*100)
+
+physical3 <- data.frame(Freq = colSums(df[66:73]),
+           Pct.of.Resp = (colSums(df[66:73])/sum(df[66:73]))*100,
+           Pct.of.Cases = (colSums(df[66:73])/nrow(df[66:73]))*100)
+
+sexual1 <- data.frame(Freq = colSums(df[76:83]),
+           Pct.of.Resp = (colSums(df[76:83])/sum(df[76:83]))*100,
+           Pct.of.Cases = (colSums(df[76:83])/nrow(df[76:83]))*100)
+
+sexual2 <- data.frame(Freq = colSums(df[87:94]),
+           Pct.of.Resp = (colSums(df[87:94])/sum(df[87:94]))*100,
+           Pct.of.Cases = (colSums(df[87:94])/nrow(df[87:94]))*100)
+
+sexual3 <- data.frame(Freq = colSums(df[96:103]),
+           Pct.of.Resp = (colSums(df[96:103])/sum(df[96:103]))*100,
+           Pct.of.Cases = (colSums(df[96:103])/nrow(df[96:103]))*100)
+
+# Multiple response of why they did not tell anyone about their experience
+notalk <- data.frame(Freq = colSums(df[106:115]),
+           Pct.of.Resp = (colSums(df[106:115])/sum(df[106:115]))*100,
+           Pct.of.Cases = (colSums(df[106:115])/nrow(df[106:115]))*100)
+```
+
+```{r}
+df %>%
+  tab_cells(mdset('13_former_partner' %to% '13_other')) %>%
+  tab_cols(disability_type) %>%
+  tab_stat_cpct() %>%
+  tab_pivot()
+```
+
+```{r}
+df %>%
+  tab_cells(mdset('39_no_need' %to% '39_other')) %>%
+  tab_cols(gender) %>%
+  tab_stat_cpct() %>%
+  tab_pivot()
+```
+
+```{r}
+df %>% 	
+  ggplot() +	
+    aes(x = total_violence_count) +	
+    geom_bar()
+```
+
+```{r}
+df %>% 	
+  group_by(level_of_disability) %>% 	
+  summarize(mean = mean(total_violence_count),	
+            sd = sd(total_violence_count))	
+```
+It appears that individuals with major psychological disabilities tend to experience the highest average number of violence types, followed by those with both major disabilities, while individuals with minor disabilities experience the least on average. However, it's important to interpret these results carefully and consider potential confounding variables or biases in the dataset.
+
+In the 'Both major' group, the average count of types of violence experienced is approximately 1.53, and the standard deviation is around 0.96. This means that, on average, most individuals in this group experience around 1.53 types of violence, and the actual counts typically vary from this mean by about 0.96. So, the majority of individuals in this group experience between 0.57 and 2.49 types of violence (1.53 ± 0.96).
+
+Similarly, for the other groups, the standard deviation represents the typical deviation of the counts from their respective means. For instance, in the 'Psych major' group, the standard deviation is higher (approximately 1.13), indicating a greater variability in the counts of violence types within this group compared to the other groups.
+
+```{r}
+df %>% 	
+  group_by(level_of_disability, trust_person) %>% 	
+  summarize(n = n()) %>% 	
+  spread(level_of_disability, n)		
+```
+
+```{r}
+df %>% 	
+  ggplot() +	
+    aes(x = total_violence_count, fill = level_of_disability) +	
+    geom_bar() +
+  theme_classic() +
+  scale_fill_manual(values = orange_gradient)
+```
+
+```{r}
+df %>% 	
+filter(psych_count != 0) %>%
+  drop_na(psych_dis_rel) %>% 
+  ggplot() +	
+    aes(x = psych_count, fill = psych_dis_rel) +	
+    geom_bar()
+```
+
+```{r}
+orange_gradient <- scales::brewer_pal(palette = "Oranges")(5)
+
+orange_gradient
+```
+
+```{r}
+df %>% 
+  select(total_violence_count,level_of_disability) %>% 
+  drop_na(level_of_disability) %>% 
+  group_by(total_violence_count,level_of_disability) %>% 
+  summarise(n=n()) %>% 
+  ungroup() %>% 
+  group_by(total_violence_count) %>% 
+  mutate(prop= n/sum(n),
+         percentage = round(n/sum(n)*100,1)) %>% 
+  ggplot(aes(x=total_violence_count, y= percentage, fill=level_of_disability)) +
+  geom_bar(stat= 'identity') +
+  geom_text(aes(y=percentage, label= paste0(percentage, "%")),
+            position= position_stack(vjust=0.5),
+            colour= "black", size =3) +
+  labs(title = "Types of violence experienced by level of disability",
+       x = "Number of violences experienced", fill = "Level of disability") +
+  theme_classic() +
+  scale_fill_manual(values = orange_gradient)
+```
+
+
+```{r}
+df %>% 
+  select(psych_count,psych_dis_rel) %>% 
+  filter(psych_count != 0) %>% 
+  drop_na(psych_dis_rel) %>% 
+  group_by(psych_count,psych_dis_rel) %>% 
+  summarise(n=n()) %>% 
+  ungroup() %>% 
+  group_by(psych_count) %>% 
+  mutate(prop= n/sum(n),
+         percentage = round(n/sum(n)*100,1)) %>% 
+  ggplot(aes(x=psych_count, y= percentage, fill=psych_dis_rel)) +
+  geom_bar(stat= 'identity') +
+  geom_text(aes(y=percentage, label= paste0(percentage, "%")),
+            position= position_stack(vjust=0.5),
+            colour= "black", size =3) +
+  labs(title = "Psychological violence and perceived relation to ones disability",
+       x = "Number of psychological violences experienced", fill = "Degree of relation to disability") +
+  theme_classic() +
+  scale_fill_manual(values = orange_gradient)
+```
+
+```{r}
+df %>% 
+  select(physical_count,physical_dis_rel) %>% 
+  filter(physical_count != 0) %>% 
+  drop_na(physical_dis_rel) %>% 
+  group_by(physical_count,physical_dis_rel) %>% 
+  summarise(n=n()) %>% 
+  ungroup() %>% 
+  group_by(physical_count) %>% 
+  mutate(prop= n/sum(n),
+         percentage = round(n/sum(n)*100,1)) %>% 
+  ggplot(aes(x=physical_count, y= percentage, fill=physical_dis_rel)) +
+  geom_bar(stat= 'identity') +
+  geom_text(aes(y=percentage, label= paste0(percentage, "%")),
+            position= position_stack(vjust=0.5),
+            colour= "black", size =3) +
+  labs(title = "Physical violence and perceived relation to ones disability",
+       x = "Number of physical violences experienced", fill = "Degree of relation to disability") +
+  theme_classic() +
+  scale_fill_manual(values = orange_gradient)
+```
+
+```{r}
+df %>% 
+  select(sexual_count,sexual_dis_rel) %>% 
+  filter(sexual_count != 0) %>% 
+  drop_na(sexual_dis_rel) %>% 
+  group_by(sexual_count,sexual_dis_rel) %>% 
+  summarise(n=n()) %>% 
+  ungroup() %>% 
+  group_by(sexual_count) %>% 
+  mutate(prop= n/sum(n),
+         percentage = round(n/sum(n)*100,1)) %>% 
+  ggplot(aes(x=sexual_count, y= percentage, fill=sexual_dis_rel)) +
+  geom_bar(stat= 'identity') +
+  geom_text(aes(y=percentage, label= paste0(percentage, "%")),
+            position= position_stack(vjust=0.5),
+            colour= "black", size =3) +
+  labs(title = "Sexual violence and perceived relation to ones disability",
+       x = "Number of sexual violences experienced", fill = "Degree of relation to disability") +
+  theme_classic() +
+  scale_fill_manual(values = orange_gradient)
+```
+
+
+```{r}
+df %>%
+  filter(physical_count != 0) %>%
+  ggplot() +
+  aes(x = physical_count, fill = physical_dis_rel) +
+  geom_bar()
+```
+
+```{r}
+df %>% 
+filter(sexual_count != 0) %>%
+  ggplot() +	
+    aes(x = sexual_count, fill = sexual_dis_rel) +	
+    geom_bar()
+```
+
+```{r}
+df %>% 
+  ggplot() +	
+    aes(x = psych_count, fill = psych_partner1) +	
+    geom_bar()
+```
+
+
+```{r}
+df %>%
+  ggplot() +
+  aes(x = education) +
+  stat_count(geom = "bar")
+```
+
+```{r}
+df %>%
+  ggplot() +
+  aes(x = age) +
+  stat_count(geom = "bar")
+```
+
+```{r}
+barplot(with(df, table(gender,age)),
+        main="Plot of gender by age",
+        beside=T,
+        ylab="gender", legend= c("male", "female", "other"), 
+        xlab="age",las = 2)
+```
+
+```{r}
+barplot(with(df, table(trust_person,level_of_disability)),
+        main="person of trust by psychological disability",
+        beside=T,
+        ylab="Someone they trust", legend= c("Have someone", "Does not"), 
+        xlab="psychological disability")
+```
+
+```{r}
+barplot(with(df, table(trust_person,physical_dis)),
+        main="person of trust by fysical disability",
+        beside=T,
+        ylab="Someone they trust", legend= c("Have someone", "Does not"), 
+        xlab="physical disability")
+```
+
+```{r}
+cont_table <- table(df$physical_dis, df$psych_dis)
+
+# Add row and column names for better interpretation
+rownames(cont_table) <- c("Physical", "No")
+colnames(cont_table) <- c("Psychological", "No")
+
+# Calculate counts for each category
+both_yes <- cont_table[1, 1]
+fysical_only <- cont_table[1, 2]
+psychological_only <- cont_table[2, 1]
+neither <- cont_table[2, 2]
+
+# Visualize the counts using a bar plot
+barplot(c(both_yes, fysical_only, psychological_only),
+        names.arg = c("Both", "Physical Only", "Psychological Only"),
+        main = "Disability",
+        xlab = "Categories",
+        ylab = "Frequency")
+
+```
+
+```{r}
+total <- sum(cont_table)
+cont_table_percent <- prop.table(cont_table) * 100
+
+# Visualize the contingency table with percentages
+print("Percentage of people with types of disabilities")
+print(cont_table_percent)
+```
+
+```{r}
+ggplot(df, aes(x = fysical_level)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  labs(title = "Distribution of fysical level") +
+  theme_minimal()
+```
+
+```{r}
+cross_tab1 <- table(df$total_violence_count, df$level_of_disability)
+
+# Print the cross-tabulation
+print(cross_tab1)
+```
+
+```{r}
+cross_tab2 <- table(df$psych_partner2, df$children)
+
+# Print the cross-tabulation
+print(cross_tab2)
+```
+
+```{r}
+cross_tab3 <- table(df$psych_partner1, df$gender)
+
+# Print the cross-tabulation
+print(cross_tab3)
+```
+
+
+```{r}
+barplot(with(df, table(gender, total_violence_count)),
+        main="gender by number of violence experienced",
+        beside=T,
+        ylab="Gender", legend= c("Male", "Female", "Other"), 
+        xlab="Count of violence")
+```
+
+```{r}
+print(table(df$total_violence_count,df$sexual_count))
+```
+
+```{r}
+print(table(df$talked,df$total_violence_count))
+```
+
+```{r}
+print(table(df$talked,df$help_knowledge))
+```
+
+```{r}
+barplot(with(df, table(total_violence_count, level_of_disability)),
+        main="Number of violence by level of disability",
+        beside=T,
+        ylab="counts of violence", legend = c("None","1","2","3"), 
+        xlab="level of disability")
+```
+
+```{r}
+barplot(with(df, table(talked, psych_count)),
+        main="Whether they told someone if they experienced psychological violence",
+        beside=T,
+        ylab="Talked to someone", legend = c("Yes","No"), 
+        xlab="psychological violence")
+```
+
+# Regression
+
+*What is the connection between types of violence experienced and ones level of disability?* Including other independent variables for control.
+```{r}
+# normal theory regression using maximum likelihood
+model.pois <- glm(total_violence_count ~ level_of_disability + disability_type + gender + age_grouped + employment + education + children, data = df, family = poisson(link = "log"))
+
+summary(model.pois)
+```
+*INTERPRETATION*: Estimate shows the increase or decrease in the log mean of the dependent variable, when theres a one unit change. So there's a 4.43 increase in the deprendent variable when the respondent is a female (compared to males?).
+*NOTE*: We want to have equidispersion, we expect the dispersion parameter to be about 1, and we find that number by dividing residual deviance with degrees of freedom. 168.42/162 = 1.039. We don't want it to be over 1.1 as it would be overdispersed, and not under 0.9 which it then will be underdispersed, so this is good.
+We can also formally test it with the following dispersion test:
+```{r}
+dispersiontest(model.pois,trafo=1)
+```
+The test shows that the p-value is non-significant, which is good.
+
+We also want to compare our model with a null model:
+```{r}
+modelnull1 <- glm(total_violence_count ~ 1, data =df, family = poisson(link = "log"))
+summary(modelnull1)
+anova(modelnull1, model.pois, test = "Chisq")
+```
+My model is much better than the null model (significant chi square). The degrees of freedom is 27 as we have a lot of variables in the model.
+
+another way of finding model fit is comparing the AIC's of our two models.
+Model 1: 501.03 
+Null model: 515.06
+AIC is lower than null model, which also means that model 1 is better.
+
+## Lets find some confidence intervals for my model:
+```{r}
+confint(modelnull1) #default is 95%
+exp(coef(model.pois))
+exp(confint(model.pois))
+
+sjPlot::tab_model(model.pois, show.intercept = TRUE, show.se = FALSE, dv.labels = "Predictors of violence experienced", auto.label = TRUE, show.re.var = FALSE, show.icc = FALSE, show.r2 = FALSE, show.ngroups = FALSE, show.obs = FALSE)
+```
+
+
+```{r}
+plot(density(residuals(model.pois)))
+```
+
+```{r}
+# observed zero counts
+sum(dpois(0, fitted(model.pois)))
+
+phat.pois <- predprob(model.pois)
+
+hist(df$model.pois, prob = TRUE, col = "gray90", breaks=seq(min(df$model.pois)-0.5,
+max(df$model.pois)+.5, 1), xlab = "Skips Category", ylim=c(0,.8) + lines(x = seq(0, 4, 1), y = phat.pois.mn, type = "b", lwd=2, lty=2, col="gray20"))
+
+plot(predict(model.pois,type="response"),residuals(model.pois), main="Poisson Regression",
+ylab="Residuals", xlab="Predicted", ylim=c(-2,5))
+abline(h=0,lty=1,col="gray")
+lines(lowess(predict(model.pois,type="response"),residuals(model.pois)),lwd=2, lty=2)
+```
+
+
+```{r}
+df_regression <- df[, c("total_violence_count", "level_of_disability", "disability_type", "talked", "acknowledged", "got_help", "rejected")]
+df_regression <- na.omit(df_regression)
+
+```
+
+
+```{r}
+model2.pois <- glm(total_violence_count ~ level_of_disability + disability_type + acknowledged + got_help + rejected, data = df_regression, family = poisson)
+
+summary(model2.pois)
+```
+
+```{r}
+df_regression2 <- df[, c("total_violence_count", "level_of_disability", "disability_type", "39_no_need", "39_not_serious", "39_would_not_help", "39_guilt/shame", "39_embarrasing", "39_protect_perpetrator", "39_no_one_to_know", "39_afraid_of_revenge", "39_afraid_not_to_be_serious", "39_other", "got_help", "help_knowledge", "talked")]
+df_regression2 <- df_regression2[df_regression2$talked != "Yes", ]
+df_regression2 <- na.omit(df_regression2)
+```
+
+
+```{r}
+model3.pois <- glm(total_violence_count ~ level_of_disability + disability_type + `39_no_need` + `39_not_serious` + `39_would_not_help` + `39_guilt/shame` + `39_embarrasing` + `39_no_one_to_know` + `39_afraid_of_revenge` +  `39_protect_perpetrator` + `39_afraid_not_to_be_serious` + `39_other`, data = df_regression2, family = poisson)
+
+summary(model3.pois)
+```
+
+```{r}
+plot(model.pois)
+```
+
